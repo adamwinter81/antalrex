@@ -1,0 +1,43 @@
+---
+# Playbook: remove-user.yml
+# Description: Remove a specified user and their home directory from target hosts.
+# Usage:
+#   ansible-playbook /ANSIBLE/playbooks/remove-user.yml -e user_to_remove=USERNAME [-e check_mode=true]
+
+- name: Remove specified user from hosts
+  hosts: all
+  become: no
+  vars:
+    user_to_remove: ""
+    dry_run: false
+  tasks:
+    - name: Check if user exists
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ user_to_remove }}"
+      register: user_entry
+      ignore_errors: yes
+
+    - name: Show user existence
+      ansible.builtin.debug:
+        msg: "User '{{ user_to_remove }}' exists: {{ user_entry.found | default(false) }}"
+
+    - name: Remove user and home directory
+      ansible.builtin.user:
+        name: "{{ user_to_remove }}"
+        state: absent
+        remove: yes
+      when:
+        - not dry_run | bool
+        - user_entry.found | default(false)
+      register: remove_result
+
+    - name: Show removal result
+      ansible.builtin.debug:
+        var: remove_result
+      when: not dry_run | bool
+
+    - name: Dry run info
+      ansible.builtin.debug:
+        msg: "Dry run enabled. No changes made. User '{{ user_to_remove }}' would be removed if present."
+      when: dry_run | bool
